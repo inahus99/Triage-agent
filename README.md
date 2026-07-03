@@ -5,8 +5,8 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design.
 ## Status
 
 - [x] Phase 1 — Quarantine & tagging layer (`src/triage_agent/quarantine.py`)
+- [x] Phase 2 — Structured static-analysis tools (`src/triage_agent/tools/static_analysis.py`)
 - [x] Phase 3 — Injection watchdog, rule-based (`src/triage_agent/watchdog.py`)
-- [ ] Phase 2 — Structured static-analysis tools (`src/triage_agent/tools/`)
 - [~] Phase 4 — Judgment layer via Gemini (`src/triage_agent/judgment.py`) — implemented, untested end-to-end
 - [ ] Phase 5 — Bounded actions & reporting
 - [ ] Phase 6 — Dynamic/sandbox analysis
