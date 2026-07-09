@@ -2,5 +2,5 @@ pydantic>=2.0
 pefile>=2023.2.7
 python-magic-bin; platform_system == "Windows"
 python-magic; platform_system != "Windows"
-google-genai>=0.3.0
+openai>=1.0.0
 pytest>=8.0
