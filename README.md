@@ -10,7 +10,18 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design.
 - [x] Phase 4 — Judgment layer via OpenAI (`src/triage_agent/judgment.py`) — live-tested, correctly resists injection
 - [x] Phase 5 — Bounded actions & reporting, SQLite-backed (`src/triage_agent/reporting.py`)
 - [x] End-to-end wiring, Phases 1→2→3→4→5 (`src/triage_agent/pipeline.py`) — live-tested with a real injection-laced sample; persistence tested via stub judge
-- [x] Phase 6 — Dynamic/sandbox analysis via Hybrid Analysis (`src/triage_agent/tools/dynamic_analysis.py`) — HTTP-mocked tests only, not yet live-tested against a real sandbox account
+- [~] Phase 6 — Dynamic/sandbox analysis via Hybrid Analysis (`src/triage_agent/tools/dynamic_analysis.py`) — **blocked**: code is built and unit-tested (HTTP-mocked), but live submission requires a Hybrid Analysis account with `default`-level API access; free/community keys are `restricted` and get a 404 on `/submit/file`. See "Phase 6 status" below.
+
+**Project considered feature-complete at Phases 1–5 + CLI.** Phase 6 is optional and can be unblocked later without changing any other phase.
+
+## Phase 6 status (blocked)
+
+Verified live against a real Hybrid Analysis community API key:
+- `GET /key/current` succeeds and reports `auth_level_name: "restricted"`
+- `POST /submit/file` returns `404 {"message": "Requested URI - Not Found"}` for this account tier
+- Read-only endpoints (e.g. `/search/hash`) are reachable, confirming it's a privilege gate, not a code or routing bug
+
+To unblock: request elevated (`default`) API access from Hybrid Analysis, or swap `tools/dynamic_analysis.py` for a provider that allows free submission (e.g. any.run's community tier). No other phase depends on this — `pipeline.triage()`'s `dynamic_analysis` parameter is optional and the CLI's `--dynamic` flag simply errors clearly if unset/unavailable.
 
 ## Setup
 
