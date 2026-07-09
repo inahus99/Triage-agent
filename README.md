@@ -8,8 +8,8 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design.
 - [x] Phase 2 — Structured static-analysis tools (`src/triage_agent/tools/static_analysis.py`)
 - [x] Phase 3 — Injection watchdog, rule-based (`src/triage_agent/watchdog.py`)
 - [x] Phase 4 — Judgment layer via OpenAI (`src/triage_agent/judgment.py`) — live-tested, correctly resists injection
-- [x] End-to-end wiring, Phases 1→2→3→4 (`src/triage_agent/pipeline.py`) — live-tested with a real injection-laced sample
-- [ ] Phase 5 — Bounded actions & reporting
+- [x] Phase 5 — Bounded actions & reporting, SQLite-backed (`src/triage_agent/reporting.py`)
+- [x] End-to-end wiring, Phases 1→2→3→4→5 (`src/triage_agent/pipeline.py`) — live-tested with a real injection-laced sample; persistence tested via stub judge
 - [ ] Phase 6 — Dynamic/sandbox analysis
 
 ## Setup
@@ -36,10 +36,12 @@ src/triage_agent/
   quarantine.py    Phase 1: wraps raw sample data as untrusted
   watchdog.py      Phase 3: rule-based injection detector
   judgment.py      Phase 4: OpenAI-backed verdict layer
-  pipeline.py      Wires Phases 1->2->3->4 into one triage() call
+  reporting.py     Phase 5: bounded actions (save_report, escalate) + SQLite storage
+  pipeline.py      Wires Phases 1->2->3->4->5 into one triage() call
   tools/           Phase 2: static analysis tools (structured output only)
 tests/
   test_watchdog.py
   test_static_analysis.py
+  test_reporting.py
   test_pipeline.py
 ```
