@@ -3,4 +3,5 @@ pefile>=2023.2.7
 python-magic-bin; platform_system == "Windows"
 python-magic; platform_system != "Windows"
 openai>=1.0.0
+requests>=2.31.0
 pytest>=8.0

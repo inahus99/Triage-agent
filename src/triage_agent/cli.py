@@ -4,6 +4,7 @@ Usage:
     python -m triage_agent.cli path/to/sample.exe
     python -m triage_agent.cli path/to/sample.exe --db reports.db
     python -m triage_agent.cli path/to/sample.exe --no-db
+    python -m triage_agent.cli path/to/sample.exe --dynamic
 """
 
 import argparse
@@ -14,6 +15,7 @@ from pathlib import Path
 from .judgment import render_verdict
 from .pipeline import triage
 from .reporting import init_db
+from .tools.dynamic_analysis import run_dynamic_analysis
 
 
 def _load_dotenv(path: Path = Path(".env")) -> None:
@@ -48,6 +50,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("file", type=Path, help="Path to the sample file to analyze")
     parser.add_argument("--db", type=Path, default=Path("triage.db"), help="SQLite report DB path")
     parser.add_argument("--no-db", action="store_true", help="Skip persisting a report")
+    parser.add_argument(
+        "--dynamic",
+        action="store_true",
+        help="Also detonate the file in a cloud sandbox (Hybrid Analysis). "
+        "Requires HYBRID_ANALYSIS_API_KEY and can take several minutes.",
+    )
     args = parser.parse_args(argv)
 
     if not args.file.exists():
@@ -58,11 +66,18 @@ def main(argv: list[str] | None = None) -> int:
     if "OPENAI_API_KEY" not in os.environ:
         print("error: OPENAI_API_KEY not set (in environment or .env)", file=sys.stderr)
         return 1
+    if args.dynamic and "HYBRID_ANALYSIS_API_KEY" not in os.environ:
+        print("error: HYBRID_ANALYSIS_API_KEY not set (in environment or .env)", file=sys.stderr)
+        return 1
 
     data = args.file.read_bytes()
     conn = None if args.no_db else init_db(args.db)
+    dynamic_analysis = (lambda d: run_dynamic_analysis(d, filename=args.file.name)) if args.dynamic else None
 
-    verdict = triage(data, judge=render_verdict, conn=conn)
+    if args.dynamic:
+        print("Submitting to sandbox, this can take a few minutes...")
+
+    verdict = triage(data, judge=render_verdict, conn=conn, dynamic_analysis=dynamic_analysis)
     _print_verdict(verdict)
 
     if conn is not None:

@@ -61,6 +61,42 @@ def test_no_db_flag_skips_report_message(tmp_path, monkeypatch, capsys):
     assert "Report saved to" not in capsys.readouterr().out
 
 
+def test_dynamic_flag_without_key_errors_before_submitting(tmp_path, monkeypatch, capsys):
+    sample = tmp_path / "sample.exe"
+    sample.write_bytes(b"kernel32.dll harmless string")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-fake-for-test")
+    monkeypatch.delenv("HYBRID_ANALYSIS_API_KEY", raising=False)
+    monkeypatch.chdir(tmp_path)
+
+    exit_code = main([str(sample), "--dynamic"])
+
+    assert exit_code == 1
+    assert "HYBRID_ANALYSIS_API_KEY not set" in capsys.readouterr().err
+
+
+def test_dynamic_flag_wires_sandbox_facts_into_pipeline(tmp_path, monkeypatch, capsys):
+    sample = tmp_path / "sample.exe"
+    sample.write_bytes(b"kernel32.dll harmless string")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-fake-for-test")
+    monkeypatch.setenv("HYBRID_ANALYSIS_API_KEY", "ha-fake-for-test")
+
+    from triage_agent.models import TriageVerdict
+
+    fake_verdict = TriageVerdict(
+        severity="benign", confidence=0.95, reasoning_summary="mocked", needs_human_review=False,
+    )
+    fake_dynamic_facts = ([], [])
+    with (
+        patch("triage_agent.cli.render_verdict", return_value=fake_verdict),
+        patch("triage_agent.cli.run_dynamic_analysis", return_value=fake_dynamic_facts) as mock_dynamic,
+    ):
+        exit_code = main([str(sample), "--dynamic", "--no-db"])
+
+    assert exit_code == 0
+    mock_dynamic.assert_called_once()
+    assert "Submitting to sandbox" in capsys.readouterr().out
+
+
 def test_load_dotenv_does_not_override_existing_env(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     (tmp_path / ".env").write_text("OPENAI_API_KEY=from_dotenv\n")
