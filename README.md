@@ -4,6 +4,8 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design.
 
 ## Status
 
+**Core pipeline (Phases 1–5 + CLI): complete, tested, and live-verified.** 58 tests passing.
+
 - [x] Phase 1 — Quarantine & tagging layer (`src/triage_agent/quarantine.py`)
 - [x] Phase 2 — Structured static-analysis tools (`src/triage_agent/tools/static_analysis.py`)
 - [x] Phase 3 — Injection watchdog, rule-based (`src/triage_agent/watchdog.py`) — handles plain text, zero-width chars, Unicode homoglyphs, and base64-encoded payloads
@@ -12,7 +14,15 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design.
 - [x] End-to-end wiring, Phases 1→2→3→4→5 (`src/triage_agent/pipeline.py`) — live-tested with a real injection-laced sample; persistence tested via stub judge
 - [~] Phase 6 — Dynamic/sandbox analysis via Hybrid Analysis (`src/triage_agent/tools/dynamic_analysis.py`) — **blocked**: code is built and unit-tested (HTTP-mocked), but live submission requires a Hybrid Analysis account with `default`-level API access; free/community keys are `restricted` and get a 404 on `/submit/file`. See "Phase 6 status" below.
 
-**Project considered feature-complete at Phases 1–5 + CLI.** Phase 6 is optional and can be unblocked later without changing any other phase.
+**Additional features (built on top of the core pipeline):**
+
+- [x] Evaluation harness (`src/triage_agent/evaluation.py`) — scores watchdog detection rate against a labeled corpus; currently 100% detection (10/10), 0% false positives (0/6)
+- [x] Defense-in-depth cross-check (`reconcile_layers` in `pipeline.py`) — forces human review when the watchdog and the LLM judge disagree
+- [x] Batch mode (`--dir`) — triage a whole folder with a summary table
+- [x] VirusTotal enrichment (`--vt`) — read-only hash-reputation lookup, free tier
+- [x] JSON output (`--json`) — machine-readable verdicts for piping into other tools
+
+**Project considered feature-complete.** Phase 6 is optional and can be unblocked later without changing any other phase.
 
 ## Phase 6 status (blocked)
 
