@@ -15,6 +15,10 @@ from ..models import StaticFact
 
 _MIN_STRING_LEN = 4
 _ASCII_STRING_RE = re.compile(rb"[\x20-\x7e]{%d,}" % _MIN_STRING_LEN)
+# Runs of printable characters after UTF-8 decoding: excludes C0/C1 control
+# chars but keeps non-ASCII letters, so homoglyph-obfuscated text survives as
+# a contiguous string instead of being split apart by the ASCII extractor.
+_UNICODE_STRING_RE = re.compile(r"[^\x00-\x1f\x7f-\x9f]{%d,}" % _MIN_STRING_LEN)
 
 
 def extract_ascii_strings(data: bytes) -> list[str]:
@@ -24,6 +28,18 @@ def extract_ascii_strings(data: bytes) -> list[str]:
     it is used anywhere else -- it is attacker-controlled content.
     """
     return [m.group().decode("ascii") for m in _ASCII_STRING_RE.finditer(data)]
+
+
+def extract_unicode_strings(data: bytes) -> list[str]:
+    """Pull printable strings out after decoding as UTF-8.
+
+    Complements extract_ascii_strings: the ASCII extractor operates on raw
+    bytes and splits a string apart on any non-ASCII byte, so text using
+    Unicode homoglyphs (e.g. Cyrillic lookalikes) never reaches the watchdog
+    as a whole phrase. Decoding first keeps such phrases intact.
+    """
+    text = data.decode("utf-8", errors="ignore")
+    return [m.group() for m in _UNICODE_STRING_RE.finditer(text)]
 
 
 def compute_hashes(data: bytes) -> list[StaticFact]:
@@ -95,5 +111,7 @@ def run_static_analysis(data: bytes) -> tuple[list[StaticFact], list[str]]:
     quarantine.py before it reaches the watchdog or judgment layer.
     """
     facts = compute_hashes(data) + parse_pe_facts(data)
-    raw_strings = extract_ascii_strings(data)
+    # Combine ASCII and UTF-8 string extraction, de-duplicated while preserving
+    # order, so both plain-ASCII and Unicode-homoglyph text reach the watchdog.
+    raw_strings = list(dict.fromkeys(extract_ascii_strings(data) + extract_unicode_strings(data)))
     return facts, raw_strings

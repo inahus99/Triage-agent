@@ -6,7 +6,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design.
 
 - [x] Phase 1 — Quarantine & tagging layer (`src/triage_agent/quarantine.py`)
 - [x] Phase 2 — Structured static-analysis tools (`src/triage_agent/tools/static_analysis.py`)
-- [x] Phase 3 — Injection watchdog, rule-based (`src/triage_agent/watchdog.py`)
+- [x] Phase 3 — Injection watchdog, rule-based (`src/triage_agent/watchdog.py`) — handles plain text, zero-width chars, Unicode homoglyphs, and base64-encoded payloads
 - [x] Phase 4 — Judgment layer via OpenAI (`src/triage_agent/judgment.py`) — live-tested, correctly resists injection
 - [x] Phase 5 — Bounded actions & reporting, SQLite-backed (`src/triage_agent/reporting.py`)
 - [x] End-to-end wiring, Phases 1→2→3→4→5 (`src/triage_agent/pipeline.py`) — live-tested with a real injection-laced sample; persistence tested via stub judge
