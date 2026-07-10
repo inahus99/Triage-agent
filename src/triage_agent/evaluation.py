@@ -1,9 +1,11 @@
-"""Evaluation harness for the injection watchdog.
+"""Evaluation harness.
 
-Measures the deterministic Phase 3 watchdog against a labeled corpus of
-injection attempts (across obfuscation techniques) and benign strings.
-Produces a scorecard: detection rate and false-positive rate. Runs with
-no LLM calls, so it is fast and free and suitable for CI / regression.
+Measures the two deterministic detection layers against labeled corpora:
+  1. the Phase 3 watchdog vs injection attempts (obfuscation techniques)
+  2. the indicator extractor vs realistic malware-family string sets
+
+Produces detection rate + false-positive rate for each. No LLM calls, so
+it is fast/free and suitable for CI / regression.
 
 Run:  python -m triage_agent.evaluation
 """
@@ -12,6 +14,7 @@ import base64
 from dataclasses import dataclass, field
 
 from .models import TaggedText, Trust
+from .tools.indicators import extract_indicators
 from .watchdog import scan
 
 
@@ -84,16 +87,55 @@ def run_evaluation(cases: list[EvalCase] = DEFAULT_CASES) -> EvalResult:
     return result
 
 
-def format_report(result: EvalResult) -> str:
+@dataclass
+class MalwareCase:
+    name: str
+    strings: list[str]
+    is_malicious: bool
+
+
+# Realistic malware-family string sets (harmless data; defanged URLs) plus
+# benign programs. Measures whether the indicator extractor surfaces evidence
+# for malicious samples and stays silent on benign ones.
+MALWARE_CASES: list[MalwareCase] = [
+    MalwareCase("ransomware", ["CryptEncrypt", "vssadmin delete shadows /all /quiet",
+                               "Your files have been encrypted", "send 0.5 BTC"], True),
+    MalwareCase("keylogger", ["SetWindowsHookEx", "GetAsyncKeyState"], True),
+    MalwareCase("infostealer", [r"\Google\Chrome\User Data\Default\Login Data", "wallet.dat",
+                                "hxxp://stealer-panel[.]xyz/gate.php"], True),
+    MalwareCase("dropper", ["URLDownloadToFile", "hxxp://malicious-cdn[.]top/payload.exe", "WinExec"], True),
+    MalwareCase("process_injector", ["VirtualAllocEx", "WriteProcessMemory", "CreateRemoteThread"], True),
+    MalwareCase("c2_beacon", ["hxxps://cdn-analytics[.]live/api/ping",
+                              r"CurrentVersion\Run"], True),
+    MalwareCase("rat", [r"HKLM\Software\Microsoft\Windows\CurrentVersion\Run", "CryptUnprotectData"], True),
+    MalwareCase("benign_installer", ["InstallShield Setup Wizard", "kernel32.dll",
+                                     "Copyright Example Software Inc", "MIT License"], False),
+    MalwareCase("benign_cli", ["usage: imgconvert --help", "libpng zlib", "Apache-2.0 License"], False),
+    MalwareCase("benign_readme", ["This tool converts images between formats.", "See docs for details."], False),
+]
+
+
+def run_indicator_evaluation(cases: list[MalwareCase] = MALWARE_CASES) -> EvalResult:
+    result = EvalResult()
+    for case in cases:
+        flagged = len(extract_indicators(case.strings)) > 0
+        if case.is_malicious:
+            (result.caught if flagged else result.missed).append(case.name)
+        else:
+            (result.false_positives if flagged else result.correct_benign).append(case.name)
+    return result
+
+
+def format_report(result: EvalResult, title: str, detected_label: str) -> str:
     lines = [
-        "=== Watchdog Evaluation ===",
-        f"Injection detection rate: {result.detection_rate:.0%} "
+        f"=== {title} ===",
+        f"{detected_label} detection rate: {result.detection_rate:.0%} "
         f"({len(result.caught)}/{result.n_injections})",
         f"False-positive rate:      {result.false_positive_rate:.0%} "
         f"({len(result.false_positives)}/{result.n_benign})",
     ]
     if result.missed:
-        lines.append("\nMISSED injections:")
+        lines.append("\nMISSED:")
         lines += [f"  - {name}" for name in result.missed]
     if result.false_positives:
         lines.append("\nFALSE POSITIVES:")
@@ -104,8 +146,9 @@ def format_report(result: EvalResult) -> str:
 
 
 def main() -> int:
-    result = run_evaluation()
-    print(format_report(result))
+    print(format_report(run_evaluation(), "Watchdog Evaluation", "Injection"))
+    print()
+    print(format_report(run_indicator_evaluation(), "Indicator Extractor Evaluation", "Malware"))
     return 0
 
 

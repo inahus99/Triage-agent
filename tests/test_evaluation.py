@@ -1,8 +1,10 @@
 from triage_agent.evaluation import (
     DEFAULT_CASES,
+    MALWARE_CASES,
     EvalCase,
     format_report,
     run_evaluation,
+    run_indicator_evaluation,
 )
 
 
@@ -34,6 +36,21 @@ def test_rates_computed_correctly_on_synthetic_cases():
 
 def test_format_report_mentions_missed_cases():
     cases = [EvalCase("sneaky", "totally harmless looking text", True)]
-    report = format_report(run_evaluation(cases))
+    report = format_report(run_evaluation(cases), "Watchdog Evaluation", "Injection")
     assert "MISSED" in report
     assert "sneaky" in report
+
+
+def test_malware_corpus_has_both_malicious_and_benign():
+    assert any(c.is_malicious for c in MALWARE_CASES)
+    assert any(not c.is_malicious for c in MALWARE_CASES)
+
+
+def test_indicator_evaluation_detects_all_malicious_samples():
+    result = run_indicator_evaluation()
+    assert result.detection_rate == 1.0, f"missed: {result.missed}"
+
+
+def test_indicator_evaluation_has_no_false_positives():
+    result = run_indicator_evaluation()
+    assert result.false_positive_rate == 0.0, f"false positives: {result.false_positives}"
