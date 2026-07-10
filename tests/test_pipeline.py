@@ -69,6 +69,17 @@ def test_pipeline_without_conn_does_not_persist_anything():
     assert verdict.severity == "benign"
 
 
+def test_pipeline_adds_enrichment_facts():
+    """An enrich callable receives the sha256 and its facts reach the judge."""
+    def fake_enrich(sha256: str):
+        return [StaticFact(tool="virustotal", fact_type="behavior_score", key="vt_malicious", value="9")]
+
+    seen: dict = {}
+    triage(b"kernel32.dll\x00", judge=_stub_judge_capturing(seen), enrich=fake_enrich)
+
+    assert any(f.key == "vt_malicious" and f.value == "9" for f in seen["facts"])
+
+
 def test_pipeline_catches_injection_smuggled_via_dynamic_analysis_facts():
     """A sandbox report's domain/classification-tag fields are text an
     attacker can influence -- they must go through quarantine + watchdog

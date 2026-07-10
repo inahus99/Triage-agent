@@ -25,11 +25,12 @@ from typing import Callable
 from .models import InjectionFinding, StaticFact, TriageVerdict
 from .quarantine import quarantine_strings
 from .reporting import escalate, save_report
-from .tools.static_analysis import compute_hashes, run_static_analysis
+from .tools.static_analysis import run_static_analysis
 from .watchdog import scan_all
 
 JudgeFn = Callable[[list[StaticFact], list[InjectionFinding]], TriageVerdict]
 DynamicAnalysisFn = Callable[[bytes], tuple[list[StaticFact], list[str]]]
+EnrichFn = Callable[[str], list[StaticFact]]  # takes a sha256, returns facts
 
 
 def reconcile_layers(verdict: TriageVerdict, findings: list[InjectionFinding]) -> TriageVerdict:
@@ -60,6 +61,7 @@ def triage(
     judge: JudgeFn,
     conn: sqlite3.Connection | None = None,
     dynamic_analysis: DynamicAnalysisFn | None = None,
+    enrich: EnrichFn | None = None,
 ) -> TriageVerdict:
     """Run the full pipeline over raw sample bytes and produce a verdict.
 
@@ -67,13 +69,19 @@ def triage(
     OpenAI call) so every caller has to consciously decide which
     judgment implementation to use -- production code passes
     judgment.render_verdict, tests pass a stub.
+    `enrich` is optional: pass tools.virustotal.lookup_hash to add
+    reputation facts from a hash lookup.
     """
     facts, raw_strings = run_static_analysis(data)
+    sha256 = next(f.value for f in facts if f.key == "sha256")
 
     if dynamic_analysis is not None:
         dynamic_facts, dynamic_raw_strings = dynamic_analysis(data)
         facts += dynamic_facts
         raw_strings += dynamic_raw_strings
+
+    if enrich is not None:
+        facts += enrich(sha256)
 
     tagged_strings = quarantine_strings(raw_strings)
     findings = scan_all(tagged_strings, source="sample_strings")
@@ -82,7 +90,6 @@ def triage(
     verdict = reconcile_layers(verdict, findings)
 
     if conn is not None:
-        sha256 = next(f.value for f in compute_hashes(data) if f.key == "sha256")
         report_id = save_report(conn, sha256, verdict)
         if verdict.needs_human_review:
             escalate(conn, report_id)

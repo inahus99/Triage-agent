@@ -16,6 +16,7 @@ from .judgment import render_verdict
 from .pipeline import triage
 from .reporting import init_db
 from .tools.dynamic_analysis import run_dynamic_analysis
+from .tools.virustotal import lookup_hash
 
 
 def _load_dotenv(path: Path = Path(".env")) -> None:
@@ -45,12 +46,13 @@ def _print_verdict(verdict) -> None:
         print("\nInjection findings: none")
 
 
-def _triage_path(path: Path, conn, dynamic_analysis):
+def _triage_path(path: Path, conn, dynamic_analysis, enrich):
     data = path.read_bytes()
-    return triage(data, judge=render_verdict, conn=conn, dynamic_analysis=dynamic_analysis)
+    return triage(data, judge=render_verdict, conn=conn,
+                  dynamic_analysis=dynamic_analysis, enrich=enrich)
 
 
-def _run_batch(directory: Path, conn, dynamic_analysis) -> int:
+def _run_batch(directory: Path, conn, dynamic_analysis, enrich) -> int:
     files = sorted(p for p in directory.iterdir() if p.is_file())
     if not files:
         print(f"error: no files in directory: {directory}", file=sys.stderr)
@@ -61,7 +63,7 @@ def _run_batch(directory: Path, conn, dynamic_analysis) -> int:
     print(header)
     print("-" * len(header))
     for path in files:
-        verdict = _triage_path(path, conn, dynamic_analysis)
+        verdict = _triage_path(path, conn, dynamic_analysis, enrich)
         review = "YES" if verdict.needs_human_review else ""
         print(f"{path.name[:31]:<32}{verdict.severity:<12}{review:<8}{len(verdict.injection_findings)}")
 
@@ -81,6 +83,12 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Also detonate the file in a cloud sandbox (Hybrid Analysis). "
         "Requires HYBRID_ANALYSIS_API_KEY and can take several minutes.",
+    )
+    parser.add_argument(
+        "--vt",
+        action="store_true",
+        help="Enrich with a VirusTotal hash lookup (read-only, free tier). "
+        "Requires VIRUSTOTAL_API_KEY.",
     )
     args = parser.parse_args(argv)
 
@@ -104,17 +112,21 @@ def main(argv: list[str] | None = None) -> int:
     if args.dynamic and "HYBRID_ANALYSIS_API_KEY" not in os.environ:
         print("error: HYBRID_ANALYSIS_API_KEY not set (in environment or .env)", file=sys.stderr)
         return 1
+    if args.vt and "VIRUSTOTAL_API_KEY" not in os.environ:
+        print("error: VIRUSTOTAL_API_KEY not set (in environment or .env)", file=sys.stderr)
+        return 1
 
     conn = None if args.no_db else init_db(args.db)
     dynamic_analysis = (lambda d: run_dynamic_analysis(d)) if args.dynamic else None
+    enrich = lookup_hash if args.vt else None
 
     if args.dynamic:
         print("Dynamic sandbox analysis enabled; each file can take a few minutes...\n")
 
     if args.dir:
-        return _run_batch(args.dir, conn, dynamic_analysis)
+        return _run_batch(args.dir, conn, dynamic_analysis, enrich)
 
-    verdict = _triage_path(args.file, conn, dynamic_analysis)
+    verdict = _triage_path(args.file, conn, dynamic_analysis, enrich)
     _print_verdict(verdict)
     if conn is not None:
         print(f"\nReport saved to {args.db}")

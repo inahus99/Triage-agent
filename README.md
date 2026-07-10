@@ -33,6 +33,7 @@ pip install -r requirements.txt
 
 Set `OPENAI_API_KEY` in your environment before using the judgment layer.
 Set `HYBRID_ANALYSIS_API_KEY` (free at hybrid-analysis.com) before using `--dynamic`.
+Set `VIRUSTOTAL_API_KEY` (free at virustotal.com) before using `--vt`.
 
 ## Run tests
 
@@ -57,6 +58,7 @@ python -m triage_agent.cli path/to/sample.exe --db reports.db   # custom report 
 python -m triage_agent.cli path/to/sample.exe --no-db           # skip persistence
 python -m triage_agent.cli path/to/sample.exe --dynamic         # also detonate in a cloud sandbox
 python -m triage_agent.cli --dir path/to/queue/                 # batch mode: triage a whole folder
+python -m triage_agent.cli path/to/sample.exe --vt              # enrich with a VirusTotal hash lookup
 ```
 
 Reads `OPENAI_API_KEY` from a `.env` file in the current directory (see
