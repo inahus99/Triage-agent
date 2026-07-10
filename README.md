@@ -59,6 +59,7 @@ python -m triage_agent.cli path/to/sample.exe --no-db           # skip persisten
 python -m triage_agent.cli path/to/sample.exe --dynamic         # also detonate in a cloud sandbox
 python -m triage_agent.cli --dir path/to/queue/                 # batch mode: triage a whole folder
 python -m triage_agent.cli path/to/sample.exe --vt              # enrich with a VirusTotal hash lookup
+python -m triage_agent.cli path/to/sample.exe --json            # machine-readable JSON output
 ```
 
 Reads `OPENAI_API_KEY` from a `.env` file in the current directory (see

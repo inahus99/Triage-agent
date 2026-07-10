@@ -137,6 +137,50 @@ def test_batch_mode_errors_on_empty_dir(tmp_path, monkeypatch, capsys):
     assert "no files in directory" in capsys.readouterr().err
 
 
+def test_json_output_is_valid_and_structured(tmp_path, monkeypatch, capsys):
+    import json
+
+    sample = tmp_path / "sample.exe"
+    sample.write_bytes(b"kernel32.dll harmless string")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-fake-for-test")
+
+    from triage_agent.models import TriageVerdict
+
+    fake_verdict = TriageVerdict(
+        severity="benign", confidence=0.95, reasoning_summary="mocked", needs_human_review=False,
+    )
+    with patch("triage_agent.cli.render_verdict", return_value=fake_verdict):
+        exit_code = main([str(sample), "--no-db", "--json"])
+
+    assert exit_code == 0
+    parsed = json.loads(capsys.readouterr().out)
+    assert parsed["file"] == "sample.exe"
+    assert parsed["severity"] == "benign"
+    assert parsed["confidence"] == 0.95
+
+
+def test_json_batch_output_is_a_list(tmp_path, monkeypatch, capsys):
+    import json
+
+    samples = tmp_path / "queue"
+    samples.mkdir()
+    (samples / "a.bin").write_bytes(b"kernel32.dll")
+    (samples / "b.bin").write_bytes(b"user32.dll")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-fake-for-test")
+
+    from triage_agent.models import TriageVerdict
+
+    fake_verdict = TriageVerdict(
+        severity="benign", confidence=0.9, reasoning_summary="x", needs_human_review=False,
+    )
+    with patch("triage_agent.cli.render_verdict", return_value=fake_verdict):
+        main(["--dir", str(samples), "--no-db", "--json"])
+
+    parsed = json.loads(capsys.readouterr().out)
+    assert isinstance(parsed, list) and len(parsed) == 2
+    assert {r["file"] for r in parsed} == {"a.bin", "b.bin"}
+
+
 def test_load_dotenv_does_not_override_existing_env(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     (tmp_path / ".env").write_text("OPENAI_API_KEY=from_dotenv\n")

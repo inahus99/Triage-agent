@@ -8,6 +8,7 @@ Usage:
 """
 
 import argparse
+import json
 import os
 import sys
 from pathlib import Path
@@ -52,11 +53,19 @@ def _triage_path(path: Path, conn, dynamic_analysis, enrich):
                   dynamic_analysis=dynamic_analysis, enrich=enrich)
 
 
-def _run_batch(directory: Path, conn, dynamic_analysis, enrich) -> int:
+def _run_batch(directory: Path, conn, dynamic_analysis, enrich, as_json=False) -> int:
     files = sorted(p for p in directory.iterdir() if p.is_file())
     if not files:
         print(f"error: no files in directory: {directory}", file=sys.stderr)
         return 1
+
+    if as_json:
+        results = []
+        for path in files:
+            verdict = _triage_path(path, conn, dynamic_analysis, enrich)
+            results.append({"file": path.name, **verdict.model_dump(mode="json")})
+        print(json.dumps(results, indent=2))
+        return 0
 
     print(f"Triaging {len(files)} file(s) in {directory}\n")
     header = f"{'FILE':<32}{'SEVERITY':<12}{'REVIEW':<8}FINDINGS"
@@ -90,6 +99,7 @@ def main(argv: list[str] | None = None) -> int:
         help="Enrich with a VirusTotal hash lookup (read-only, free tier). "
         "Requires VIRUSTOTAL_API_KEY.",
     )
+    parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON instead of text")
     args = parser.parse_args(argv)
 
     if not args.file and not args.dir:
@@ -120,16 +130,19 @@ def main(argv: list[str] | None = None) -> int:
     dynamic_analysis = (lambda d: run_dynamic_analysis(d)) if args.dynamic else None
     enrich = lookup_hash if args.vt else None
 
-    if args.dynamic:
+    if args.dynamic and not args.json:
         print("Dynamic sandbox analysis enabled; each file can take a few minutes...\n")
 
     if args.dir:
-        return _run_batch(args.dir, conn, dynamic_analysis, enrich)
+        return _run_batch(args.dir, conn, dynamic_analysis, enrich, as_json=args.json)
 
     verdict = _triage_path(args.file, conn, dynamic_analysis, enrich)
-    _print_verdict(verdict)
-    if conn is not None:
-        print(f"\nReport saved to {args.db}")
+    if args.json:
+        print(json.dumps({"file": args.file.name, **verdict.model_dump(mode="json")}, indent=2))
+    else:
+        _print_verdict(verdict)
+        if conn is not None:
+            print(f"\nReport saved to {args.db}")
     return 0
 
 
