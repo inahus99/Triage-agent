@@ -12,6 +12,7 @@ import re
 import pefile
 
 from ..models import StaticFact
+from .indicators import extract_indicators
 
 _MIN_STRING_LEN = 4
 _ASCII_STRING_RE = re.compile(rb"[\x20-\x7e]{%d,}" % _MIN_STRING_LEN)
@@ -114,4 +115,7 @@ def run_static_analysis(data: bytes) -> tuple[list[StaticFact], list[str]]:
     # Combine ASCII and UTF-8 string extraction, de-duplicated while preserving
     # order, so both plain-ASCII and Unicode-homoglyph text reach the watchdog.
     raw_strings = list(dict.fromkeys(extract_ascii_strings(data) + extract_unicode_strings(data)))
+    # Surface malware indicators from those strings as structured facts so the
+    # judge can see them without ever receiving the raw strings themselves.
+    facts += extract_indicators(raw_strings)
     return facts, raw_strings

@@ -26,7 +26,10 @@ class StaticFact(BaseModel):
     No free-text verdict fields on purpose -- see ARCHITECTURE.md.
     """
     tool: str
-    fact_type: Literal["hash", "string", "import", "section", "pe_header", "network", "behavior_score"]
+    fact_type: Literal[
+        "hash", "string", "import", "section", "pe_header", "network",
+        "behavior_score", "suspicious_api", "indicator",
+    ]
     key: str
     value: str
     trust: Trust = Trust.TOOL_DERIVED

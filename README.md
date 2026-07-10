@@ -4,7 +4,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design.
 
 ## Status
 
-**Core pipeline (Phases 1–5 + CLI): complete, tested, and live-verified.** 58 tests passing.
+**Core pipeline (Phases 1–5 + CLI): complete, tested, and live-verified.** 65 tests passing.
 
 - [x] Phase 1 — Quarantine & tagging layer (`src/triage_agent/quarantine.py`)
 - [x] Phase 2 — Structured static-analysis tools (`src/triage_agent/tools/static_analysis.py`)
@@ -16,6 +16,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design.
 
 **Additional features (built on top of the core pipeline):**
 
+- [x] Malware indicator extractor (`src/triage_agent/tools/indicators.py`) — turns suspicious strings (injection/keylogging/ransom/C2/credential-theft APIs and behaviors) into **structured facts**, so the judge can detect ordinary malware without ever receiving raw sample text. Lifted detection on a 10-sample realistic corpus from 2/8 to 8/8 with 0 false positives.
 - [x] Evaluation harness (`src/triage_agent/evaluation.py`) — scores watchdog detection rate against a labeled corpus; currently 100% detection (10/10), 0% false positives (0/6)
 - [x] Defense-in-depth cross-check (`reconcile_layers` in `pipeline.py`) — forces human review when the watchdog and the LLM judge disagree
 - [x] Batch mode (`--dir`) — triage a whole folder with a summary table
