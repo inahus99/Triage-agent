@@ -45,9 +45,35 @@ def _print_verdict(verdict) -> None:
         print("\nInjection findings: none")
 
 
+def _triage_path(path: Path, conn, dynamic_analysis):
+    data = path.read_bytes()
+    return triage(data, judge=render_verdict, conn=conn, dynamic_analysis=dynamic_analysis)
+
+
+def _run_batch(directory: Path, conn, dynamic_analysis) -> int:
+    files = sorted(p for p in directory.iterdir() if p.is_file())
+    if not files:
+        print(f"error: no files in directory: {directory}", file=sys.stderr)
+        return 1
+
+    print(f"Triaging {len(files)} file(s) in {directory}\n")
+    header = f"{'FILE':<32}{'SEVERITY':<12}{'REVIEW':<8}FINDINGS"
+    print(header)
+    print("-" * len(header))
+    for path in files:
+        verdict = _triage_path(path, conn, dynamic_analysis)
+        review = "YES" if verdict.needs_human_review else ""
+        print(f"{path.name[:31]:<32}{verdict.severity:<12}{review:<8}{len(verdict.injection_findings)}")
+
+    if conn is not None:
+        print("\nReports saved.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run the malware triage pipeline on a file.")
-    parser.add_argument("file", type=Path, help="Path to the sample file to analyze")
+    parser.add_argument("file", type=Path, nargs="?", help="Path to the sample file to analyze")
+    parser.add_argument("--dir", type=Path, help="Triage every file in this directory (batch mode)")
     parser.add_argument("--db", type=Path, default=Path("triage.db"), help="SQLite report DB path")
     parser.add_argument("--no-db", action="store_true", help="Skip persisting a report")
     parser.add_argument(
@@ -58,8 +84,17 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    if not args.file.exists():
+    if not args.file and not args.dir:
+        print("error: provide a file or --dir", file=sys.stderr)
+        return 1
+    if args.file and args.dir:
+        print("error: provide either a file or --dir, not both", file=sys.stderr)
+        return 1
+    if args.file and not args.file.exists():
         print(f"error: file not found: {args.file}", file=sys.stderr)
+        return 1
+    if args.dir and not args.dir.is_dir():
+        print(f"error: not a directory: {args.dir}", file=sys.stderr)
         return 1
 
     _load_dotenv()
@@ -70,19 +105,19 @@ def main(argv: list[str] | None = None) -> int:
         print("error: HYBRID_ANALYSIS_API_KEY not set (in environment or .env)", file=sys.stderr)
         return 1
 
-    data = args.file.read_bytes()
     conn = None if args.no_db else init_db(args.db)
-    dynamic_analysis = (lambda d: run_dynamic_analysis(d, filename=args.file.name)) if args.dynamic else None
+    dynamic_analysis = (lambda d: run_dynamic_analysis(d)) if args.dynamic else None
 
     if args.dynamic:
-        print("Submitting to sandbox, this can take a few minutes...")
+        print("Dynamic sandbox analysis enabled; each file can take a few minutes...\n")
 
-    verdict = triage(data, judge=render_verdict, conn=conn, dynamic_analysis=dynamic_analysis)
+    if args.dir:
+        return _run_batch(args.dir, conn, dynamic_analysis)
+
+    verdict = _triage_path(args.file, conn, dynamic_analysis)
     _print_verdict(verdict)
-
     if conn is not None:
         print(f"\nReport saved to {args.db}")
-
     return 0
 
 

@@ -56,6 +56,7 @@ python -m triage_agent.cli path/to/sample.exe
 python -m triage_agent.cli path/to/sample.exe --db reports.db   # custom report DB
 python -m triage_agent.cli path/to/sample.exe --no-db           # skip persistence
 python -m triage_agent.cli path/to/sample.exe --dynamic         # also detonate in a cloud sandbox
+python -m triage_agent.cli --dir path/to/queue/                 # batch mode: triage a whole folder
 ```
 
 Reads `OPENAI_API_KEY` from a `.env` file in the current directory (see
