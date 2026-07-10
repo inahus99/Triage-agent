@@ -40,6 +40,15 @@ Set `HYBRID_ANALYSIS_API_KEY` (free at hybrid-analysis.com) before using `--dyna
 pytest
 ```
 
+## Evaluate the watchdog
+
+Scores the injection watchdog against a labeled corpus (detection rate +
+false-positive rate). No API calls, runs in a fraction of a second:
+
+```bash
+python -m triage_agent.evaluation
+```
+
 ## Run on a real file
 
 ```bash
