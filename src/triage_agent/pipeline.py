@@ -32,6 +32,29 @@ JudgeFn = Callable[[list[StaticFact], list[InjectionFinding]], TriageVerdict]
 DynamicAnalysisFn = Callable[[bytes], tuple[list[StaticFact], list[str]]]
 
 
+def reconcile_layers(verdict: TriageVerdict, findings: list[InjectionFinding]) -> TriageVerdict:
+    """Defense in depth: the deterministic watchdog and the LLM judge should
+    corroborate. If the watchdog flagged injection attempts but the judge
+    still returned a non-malicious verdict, that disagreement is itself
+    suspicious -- the judge may have under-weighted the evidence (or been
+    partially swayed). Force human review rather than trusting the softer
+    of two disagreeing signals.
+    """
+    if findings and verdict.severity != "malicious" and not verdict.needs_human_review:
+        note = (
+            " [layer-disagreement: watchdog flagged "
+            f"{len(findings)} injection finding(s) but judge returned "
+            f"'{verdict.severity}']"
+        )
+        return verdict.model_copy(
+            update={
+                "needs_human_review": True,
+                "reasoning_summary": verdict.reasoning_summary + note,
+            }
+        )
+    return verdict
+
+
 def triage(
     data: bytes,
     judge: JudgeFn,
@@ -56,6 +79,7 @@ def triage(
     findings = scan_all(tagged_strings, source="sample_strings")
 
     verdict = judge(facts, findings)
+    verdict = reconcile_layers(verdict, findings)
 
     if conn is not None:
         sha256 = next(f.value for f in compute_hashes(data) if f.key == "sha256")
